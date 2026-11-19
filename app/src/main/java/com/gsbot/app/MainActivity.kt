@@ -30,6 +30,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -46,7 +47,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gsbot.app.core.download.ModelDownloadRepository
 import com.gsbot.app.core.model.ModelCatalog
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 private val Ink = Color(0xFF101114)
 private val Panel = Color(0xFF1B1D22)
@@ -82,11 +85,14 @@ private fun HomeScreen() {
     val model = ModelCatalog.starter
     val repository = remember(context) { ModelDownloadRepository(context) }
 
-    var installed by remember { mutableStateOf(repository.isInstalled(model)) }
+    var installed by remember { mutableStateOf(false) }
     var downloading by remember { mutableStateOf(false) }
     var progress by remember { mutableFloatStateOf(0f) }
-    var statusText by remember {
-        mutableStateOf(if (installed) "已安装 · SHA-256 校验通过" else "尚未下载")
+    var statusText by remember { mutableStateOf("正在检查本地模型…") }
+
+    LaunchedEffect(repository, model) {
+        installed = withContext(Dispatchers.IO) { repository.isInstalled(model) }
+        statusText = if (installed) "已安装 · SHA-256 校验通过" else "尚未下载"
     }
 
     Column(
@@ -186,7 +192,7 @@ private fun HomeScreen() {
                             }
                         }
                     },
-                    enabled = !installed && !downloading,
+                    enabled = !installed && !downloading && statusText != "正在检查本地模型…",
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(14.dp),
                     colors = ButtonDefaults.buttonColors(
