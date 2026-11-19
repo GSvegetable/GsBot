@@ -8,7 +8,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -25,6 +24,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -47,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.gsbot.app.core.download.ModelDownloadRepository
 import com.gsbot.app.core.model.ModelCatalog
+import com.gsbot.app.core.runtime.NativeLlamaEngine
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -84,11 +85,18 @@ private fun HomeScreen() {
     val scope = rememberCoroutineScope()
     val model = ModelCatalog.starter
     val repository = remember(context) { ModelDownloadRepository(context) }
+    val inferenceEngine = remember(context) { NativeLlamaEngine(context) }
 
     var installed by remember { mutableStateOf(false) }
     var downloading by remember { mutableStateOf(false) }
     var progress by remember { mutableFloatStateOf(0f) }
     var statusText by remember { mutableStateOf("正在检查本地模型…") }
+    var engineLoaded by remember { mutableStateOf(false) }
+    var modelLoading by remember { mutableStateOf(false) }
+    var engineStatus by remember { mutableStateOf("推理引擎尚未加载") }
+    var prompt by remember { mutableStateOf("") }
+    var answer by remember { mutableStateOf("") }
+    var generating by remember { mutableStateOf(false) }
 
     LaunchedEffect(repository, model) {
         installed = withContext(Dispatchers.IO) { repository.isInstalled(model) }
@@ -222,12 +230,86 @@ private fun HomeScreen() {
         }
 
         Text("运行环境", color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.SemiBold)
-        StatusCard(
-            icon = Icons.Rounded.Memory,
-            title = "本地推理引擎",
-            subtitle = if (installed) "模型已就绪，推理引擎待接入" else "等待安装模型",
-            detail = "正在准备 llama.cpp Android NDK 集成"
-        )
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = Panel)
+        ) {
+            Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("本地推理引擎", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                Text(engineStatus, color = if (engineLoaded) Accent else Muted, fontSize = 12.sp)
+                Button(
+                    onClick = {
+                        scope.launch {
+                            modelLoading = true
+                            engineStatus = "正在加载模型到内存…"
+                            try {
+                                inferenceEngine.loadModel(model)
+                                engineLoaded = inferenceEngine.isModelLoaded()
+                                engineStatus = if (engineLoaded) "模型已加载，可以开始本地对话" else "模型加载未完成"
+                            } catch (error: Exception) {
+                                engineStatus = error.message ?: "模型加载失败"
+                            } finally {
+                                modelLoading = false
+                            }
+                        }
+                    },
+                    enabled = installed && !modelLoading && !engineLoaded,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text(if (modelLoading) "正在加载…" else if (engineLoaded) "模型已加载" else "加载模型")
+                }
+            }
+        }
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = Panel)
+        ) {
+            Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text("本地聊天", color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.SemiBold)
+                Text("消息只在设备上交给本地模型处理。首版暂时按单轮方式生成回复。", color = Muted, fontSize = 12.sp, lineHeight = 18.sp)
+                OutlinedTextField(
+                    value = prompt,
+                    onValueChange = { prompt = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = engineLoaded && !generating,
+                    label = { Text("输入消息") },
+                    minLines = 2,
+                    maxLines = 5
+                )
+                Button(
+                    onClick = {
+                        val message = prompt.trim()
+                        scope.launch {
+                            generating = true
+                            answer = ""
+                            try {
+                                inferenceEngine.generate(message) { generated ->
+                                    answer = generated
+                                }
+                            } catch (error: Exception) {
+                                answer = error.message ?: "生成失败"
+                            } finally {
+                                generating = false
+                            }
+                        }
+                    },
+                    enabled = engineLoaded && prompt.isNotBlank() && !generating,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp)
+                ) {
+                    Text(if (generating) "正在生成…" else "发送到本地模型")
+                }
+                if (answer.isNotBlank()) {
+                    Text("模型回复", color = Accent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Text(answer, color = Color.White, fontSize = 14.sp, lineHeight = 21.sp)
+                }
+            }
+        }
+
         StatusCard(
             icon = Icons.Rounded.Terminal,
             title = "Linux 运行环境",
