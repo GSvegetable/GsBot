@@ -30,12 +30,11 @@ This repository contains an Android application scaffold, a Compose home screen,
 
 ## Planned milestones
 
-1. Foundation — Android project, app shell, navigation, persistent settings, download infrastructure.
-2. Model runtime — integrate llama.cpp through Android NDK/JNI, load the verified starter GGUF from app-private storage, and implement local chat.
-3. Execution runtime — sandboxed local workspace, Linux user-space bootstrap, process lifecycle, storage controls, and permission prompts.
+1. Foundation — Android app shell, navigation, settings, and verified download infrastructure.
+2. Local model runtime — validate the llama.cpp NDK bridge on target devices, add streaming and conversation history, and tune memory/thread settings.
+3. Linux execution runtime — app-scoped user-space bootstrap, process supervision, storage controls, and agent permissions.
 4. Agent layer — tool registry, task execution, audit trail, cancellation, and user approval for sensitive actions.
-5. Linux execution runtime — app-scoped user-space bootstrap, process supervision, storage controls, and agent permissions.
-6. Release hardening — device compatibility, ABI-specific builds, offline behavior, license notices, security review, and signed APK.
+5. Release hardening — device compatibility, ABI-specific builds, offline behavior, license notices, security review, and signed APK.
 
 ## Important constraints
 
