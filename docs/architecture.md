@@ -2,15 +2,24 @@
 
 ## Runtime boundaries
 
-The Android UI is the product shell, not the runtime itself. It should communicate with stable Kotlin interfaces so that model inference and the Linux execution environment can be replaced without rewriting the UI.
+The Android UI is the product shell, not the runtime itself. It communicates with stable Kotlin interfaces so model inference and the Linux execution environment can evolve independently.
 
 ### Model subsystem
 
-- Model metadata includes the exact upstream artifact URL, file name, byte size, SHA-256, format, and license details.
+- Model metadata includes an immutable upstream revision, exact artifact URL, file name, byte size, SHA-256, format, and license details.
 - Model files are stored in app-private storage by default.
 - A model is not marked installed until the download is complete and its checksum matches.
-- The catalog must not contain guessed URLs or unverified license claims.
-- The first supported format is GGUF; the first inference backend candidate is llama.cpp through Android NDK/JNI.
+- The starter catalog pins ggml-org/Qwen3-1.7B-GGUF Q4_K_M to an immutable Hugging Face revision.
+- The downloader supports HTTPS, HTTP Range resume, progress callbacks, cancellation, exact byte-length checks, and SHA-256 verification.
+- The starter model uses the Apache-2.0 license declared by its upstream model repository.
+
+### Inference subsystem
+
+- The initial backend is llama.cpp, pinned to an immutable upstream commit and built with the Android NDK.
+- The first native target is arm64-v8a, CPU-only, Android API 28+.
+- Kotlin calls a small JNI boundary; model weights stay in GsBot app-private storage.
+- The initial proof-of-integration uses a 2048-token context and returns a completed response. Streaming, multi-turn KV-cache retention, hardware acceleration, and device-specific memory tuning remain pending.
+- The llama.cpp MIT license is included in app assets and listed in THIRD_PARTY_NOTICES.md.
 
 ### Execution subsystem
 
@@ -21,15 +30,15 @@ The Android UI is the product shell, not the runtime itself. It should communica
 
 ### Download subsystem
 
-The downloader will need resumable transfers, progress reporting, free-space checks, checksum verification, cancellation, retry, and safe cleanup of partial files. Model weights and root filesystems are never bundled into the base APK.
+The downloader will need durable background scheduling, resumable transfers, progress reporting, free-space checks, checksum verification, cancellation, retry, and safe cleanup of partial files. Model weights and root filesystems are never bundled into the base APK.
 
 ## Delivery sequence
 
-1. Android app foundation and typed runtime boundaries.
-2. Model download manager and a verified small-model catalog.
-3. Native inference backend and local chat.
-4. Linux user-space bootstrap and process supervisor.
-5. Agent tool permissions, task history, and release hardening.
+1. Validate the Android Gradle + NDK build and native llama.cpp bridge.
+2. Verify model loading and inference on arm64 Android hardware.
+3. Add streaming output, conversation history, memory checks, and device tuning.
+4. Implement the Linux user-space bootstrap and process supervisor.
+5. Add Agent tools, permission prompts, task history, and release hardening.
 
 ## Non-goals for the first milestone
 
