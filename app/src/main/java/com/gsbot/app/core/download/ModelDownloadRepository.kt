@@ -34,11 +34,7 @@ class ModelDownloadRepository(context: Context) {
         val destination = File(modelDirectory, model.fileName)
         val partial = File(modelDirectory, "${model.fileName}.part")
 
-        if (destination.isFile && destination.length() == model.sizeBytes &&
-            sha256(destination).equals(model.sha256, ignoreCase = true)
-        ) {
-            return@withContext destination
-        }
+        if (isInstalled(model)) return@withContext destination
         if (destination.exists()) destination.delete()
 
         var offset = partial.length()
@@ -63,6 +59,7 @@ class ModelDownloadRepository(context: Context) {
                     sha256(partial).equals(model.sha256, ignoreCase = true)
                 ) {
                     promote(partial, destination)
+                    writeVerificationStamp(model, destination)
                     return@withContext destination
                 }
                 partial.delete()
@@ -141,26 +138,38 @@ class ModelDownloadRepository(context: Context) {
         }
 
         promote(partial, destination)
+        writeVerificationStamp(model, destination)
         destination
     }
 
     fun isInstalled(model: ModelDescriptor): Boolean {
         validateDescriptor(model)
         val file = File(modelDirectory, model.fileName)
-        return file.isFile && file.length() == model.sizeBytes &&
-            sha256(file).equals(model.sha256, ignoreCase = true)
+        if (!file.isFile || file.length() != model.sizeBytes) return false
+
+        val stamp = verificationStamp(model)
+        val expectedStamp = "${model.sha256.lowercase(Locale.ROOT)}\n${model.sizeBytes}\n${file.lastModified()}"
+        if (stamp.isFile && stamp.readText() == expectedStamp) return true
+
+        val valid = sha256(file).equals(model.sha256, ignoreCase = true)
+        if (valid) writeVerificationStamp(model, file)
+        return valid
     }
 
     fun installedModels(): List<File> =
-        modelDirectory.listFiles()?.filter { it.isFile && !it.name.endsWith(".part") }.orEmpty()
+        modelDirectory.listFiles()?.filter {
+            it.isFile && !it.name.endsWith(".part") && !it.name.endsWith(".verified")
+        }.orEmpty()
 
     fun deleteModel(fileName: String): Boolean {
         requireSafeFileName(fileName)
         val target = File(modelDirectory, fileName)
         val partial = File(modelDirectory, "$fileName.part")
+        val stamp = File(modelDirectory, "$fileName.verified")
         val targetDeleted = !target.exists() || target.delete()
         val partialDeleted = !partial.exists() || partial.delete()
-        return targetDeleted && partialDeleted
+        val stampDeleted = !stamp.exists() || stamp.delete()
+        return targetDeleted && partialDeleted && stampDeleted
     }
 
 
@@ -229,6 +238,16 @@ class ModelDownloadRepository(context: Context) {
         return digest.digest().joinToString("") {
             "%02x".format(Locale.ROOT, it)
         }
+    }
+
+
+    private fun verificationStamp(model: ModelDescriptor): File =
+        File(modelDirectory, "${model.fileName}.verified")
+
+    private fun writeVerificationStamp(model: ModelDescriptor, file: File) {
+        val stamp = verificationStamp(model)
+        val content = "${model.sha256.lowercase(Locale.ROOT)}\n${model.sizeBytes}\n${file.lastModified()}"
+        stamp.writeText(content)
     }
 
     private fun promote(partial: File, destination: File) {
