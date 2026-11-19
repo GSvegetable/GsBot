@@ -26,4 +26,5 @@ FetchContent_MakeAvailable(llama_cpp)
 
 add_library(gsbot_llama SHARED gsbot_llama.cpp)
 target_compile_features(gsbot_llama PRIVATE cxx_std_17)
+target_compile_options(gsbot_llama PRIVATE -fexceptions)
 target_link_libraries(gsbot_llama PRIVATE llama android log)
