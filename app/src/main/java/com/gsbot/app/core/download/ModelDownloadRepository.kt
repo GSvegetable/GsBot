@@ -135,6 +135,13 @@ class ModelDownloadRepository(context: Context) {
         destination
     }
 
+    fun isInstalled(model: ModelDescriptor): Boolean {
+        validateDescriptor(model)
+        val file = File(modelDirectory, model.fileName)
+        return file.isFile && file.length() == model.sizeBytes &&
+            sha256(file).equals(model.sha256, ignoreCase = true)
+    }
+
     fun installedModels(): List<File> =
         modelDirectory.listFiles()?.filter { it.isFile && !it.name.endsWith(".part") }.orEmpty()
 
