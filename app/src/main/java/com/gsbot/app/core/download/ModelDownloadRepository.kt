@@ -2,6 +2,7 @@ package com.gsbot.app.core.download
 
 import android.content.Context
 import com.gsbot.app.core.model.ModelDescriptor
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
@@ -116,6 +117,8 @@ class ModelDownloadRepository(context: Context) {
                     output.fd.sync()
                 }
             }
+        } catch (error: CancellationException) {
+            throw error
         } catch (error: ModelDownloadException) {
             throw error
         } catch (error: Exception) {
