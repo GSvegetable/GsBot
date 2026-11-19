@@ -4,8 +4,8 @@ import com.gsbot.app.core.model.ModelDescriptor
 
 /**
  * Boundary between the app and its on-device inference backend.
- * The first implementation will be selected after an Android NDK device
- * compatibility spike; UI code must not depend on a specific native engine.
+ * The first adapter is llama.cpp through Android NDK/JNI; the UI remains
+ * independent of the native engine implementation.
  */
 interface LocalInferenceEngine {
     suspend fun loadModel(model: ModelDescriptor)
