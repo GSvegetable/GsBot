@@ -94,6 +94,7 @@ class ModelDownloadRepository(context: Context) {
 
                     val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
                     var downloaded = if (append) offset else 0L
+                    var lastReportedBytes = downloaded
                     onProgress(downloaded, model.sizeBytes)
 
                     while (true) {
@@ -105,7 +106,12 @@ class ModelDownloadRepository(context: Context) {
                         if (downloaded > model.sizeBytes) {
                             throw ModelDownloadException("下载文件大小超过预期")
                         }
-                        onProgress(downloaded, model.sizeBytes)
+                        if (downloaded - lastReportedBytes >= PROGRESS_INTERVAL_BYTES ||
+                            downloaded == model.sizeBytes
+                        ) {
+                            onProgress(downloaded, model.sizeBytes)
+                            lastReportedBytes = downloaded
+                        }
                     }
                     output.fd.sync()
                 }
@@ -197,6 +203,7 @@ class ModelDownloadRepository(context: Context) {
     companion object {
         private const val CONNECT_TIMEOUT_MS = 15_000
         private const val READ_TIMEOUT_MS = 30_000
+        private const val PROGRESS_INTERVAL_BYTES = 1L * 1024L * 1024L
         private val SHA256_PATTERN = Regex("[A-Fa-f0-9]{64}")
     }
 }
