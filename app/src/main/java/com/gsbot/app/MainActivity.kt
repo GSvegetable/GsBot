@@ -48,7 +48,9 @@ import androidx.compose.ui.unit.sp
 import com.gsbot.app.core.download.ModelDownloadRepository
 import com.gsbot.app.core.model.ModelCatalog
 import com.gsbot.app.core.runtime.NativeLlamaEngine
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -89,6 +91,7 @@ private fun HomeScreen() {
 
     var installed by remember { mutableStateOf(false) }
     var downloading by remember { mutableStateOf(false) }
+    var downloadJob by remember { mutableStateOf<Job?>(null) }
     var progress by remember { mutableFloatStateOf(0f) }
     var statusText by remember { mutableStateOf("正在检查本地模型…") }
     var engineLoaded by remember { mutableStateOf(false) }
@@ -179,7 +182,7 @@ private fun HomeScreen() {
                 }
                 Button(
                     onClick = {
-                        scope.launch {
+                        downloadJob = scope.launch {
                             downloading = true
                             progress = 0f
                             statusText = "正在连接模型源…"
@@ -193,6 +196,9 @@ private fun HomeScreen() {
                                 installed = true
                                 progress = 1f
                                 statusText = "已安装 · SHA-256 校验通过"
+                            } catch (error: CancellationException) {
+                                statusText = "下载已暂停，可继续续传"
+                                throw error
                             } catch (error: Exception) {
                                 statusText = error.message ?: "下载失败，可重试续传"
                             } finally {
@@ -219,6 +225,14 @@ private fun HomeScreen() {
                         modifier = Modifier.padding(vertical = 5.dp),
                         fontWeight = FontWeight.SemiBold
                     )
+                }
+                if (downloading) {
+                    androidx.compose.material3.TextButton(
+                        onClick = { downloadJob?.cancel() },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text("暂停下载", color = Accent)
+                    }
                 }
                 Text(
                     "来源：Hugging Face · ggml-org。模型权重不会打包进 APK。",
