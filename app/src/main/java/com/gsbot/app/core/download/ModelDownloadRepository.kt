@@ -65,7 +65,7 @@ class ModelDownloadRepository(context: Context) {
                     return@withContext destination
                 }
                 partial.delete()
-                throw ModelDownloadException("服务器拒绝续传，请重新开始下载")
+                throw ModelDownloadException("服务器拒绝续传，损坏的临时文件已清理")
             }
 
             val append = offset > 0L && status == HttpURLConnection.HTTP_PARTIAL
