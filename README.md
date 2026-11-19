@@ -42,4 +42,4 @@ Open source does not mean every model or binary can be redistributed without con
 
 ## Build
 
-Open this repository in Android Studio with JDK 17 and Android SDK 35 installed, then build the app configuration.
+Open this repository in Android Studio with JDK 17, Android SDK 35, Android NDK 27.0.12077973, and CMake 3.22.1 installed. The native build fetches the pinned llama.cpp source at configure time. The CI workflow assembles a debug APK and uploads it as a 14-day workflow artifact when a run is triggered.
