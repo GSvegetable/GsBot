@@ -17,7 +17,7 @@ class NativeLlamaEngine(context: Context) : LocalInferenceEngine {
     private val appContext = context.applicationContext
     private val downloads = ModelDownloadRepository(appContext)
 
-    override suspend fun loadModel(model: ModelDescriptor) = withContext(Dispatchers.IO) {
+    override suspend fun loadModel(model: ModelDescriptor): Unit = withContext(Dispatchers.IO) {
         check(downloads.isInstalled(model)) {
             "模型尚未安装或完整性校验失败，请先从模型库下载"
         }
@@ -25,6 +25,7 @@ class NativeLlamaEngine(context: Context) : LocalInferenceEngine {
         nativeLoadModel(file.absolutePath)?.let { message ->
             throw IllegalStateException(message)
         }
+        Unit
     }
 
     override suspend fun generate(prompt: String, onToken: (String) -> Unit) {
