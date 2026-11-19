@@ -1,6 +1,7 @@
 package com.gsbot.app.core.download
 
 import android.content.Context
+import android.os.StatFs
 import com.gsbot.app.core.model.ModelDescriptor
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -46,13 +47,12 @@ class ModelDownloadRepository(context: Context) {
             offset = 0L
         }
 
-        val connection = (URL(model.artifactUrl).openConnection() as HttpURLConnection).apply {
-            connectTimeout = CONNECT_TIMEOUT_MS
-            readTimeout = READ_TIMEOUT_MS
-            instanceFollowRedirects = true
-            setRequestProperty("Accept-Encoding", "identity")
-            if (offset > 0L) setRequestProperty("Range", "bytes=$offset-")
+        val requiredSpace = (model.sizeBytes - offset) + MINIMUM_FREE_SPACE_RESERVE
+        if (StatFs(modelDirectory.absolutePath).availableBytes < requiredSpace) {
+            throw ModelDownloadException("设备可用存储空间不足，至少还需要约 ${requiredSpace / (1024 * 1024)} MiB")
         }
+
+        val connection = openHttpsConnection(URL(model.artifactUrl), offset)
 
         try {
             connection.connect()
@@ -163,6 +163,43 @@ class ModelDownloadRepository(context: Context) {
         return targetDeleted && partialDeleted
     }
 
+
+    private fun openHttpsConnection(initialUrl: URL, offset: Long): HttpURLConnection {
+        var currentUrl = initialUrl
+        repeat(MAX_REDIRECTS + 1) {
+            require(currentUrl.protocol.equals("https", ignoreCase = true)) {
+                "模型下载重定向必须保持 HTTPS"
+            }
+            val connection = (currentUrl.openConnection() as HttpURLConnection).apply {
+                connectTimeout = CONNECT_TIMEOUT_MS
+                readTimeout = READ_TIMEOUT_MS
+                instanceFollowRedirects = false
+                setRequestProperty("Accept-Encoding", "identity")
+                if (offset > 0L) setRequestProperty("Range", "bytes=$offset-")
+            }
+            try {
+                connection.connect()
+                val status = connection.responseCode
+                if (status in 300..399) {
+                    val location = connection.getHeaderField("Location")
+                        ?: throw ModelDownloadException("模型服务器返回了无效重定向")
+                    val nextUrl = URL(currentUrl, location)
+                    connection.disconnect()
+                    if (!nextUrl.protocol.equals("https", ignoreCase = true)) {
+                        throw ModelDownloadException("模型下载重定向必须保持 HTTPS")
+                    }
+                    currentUrl = nextUrl
+                } else {
+                    return connection
+                }
+            } catch (error: Exception) {
+                connection.disconnect()
+                throw error
+            }
+        }
+        throw ModelDownloadException("模型下载重定向次数过多")
+    }
+
     private fun validateDescriptor(model: ModelDescriptor) {
         requireSafeFileName(model.fileName)
         require(model.sizeBytes > 0L) { "模型文件大小必须大于 0" }
@@ -207,6 +244,8 @@ class ModelDownloadRepository(context: Context) {
         private const val CONNECT_TIMEOUT_MS = 15_000
         private const val READ_TIMEOUT_MS = 30_000
         private const val PROGRESS_INTERVAL_BYTES = 1L * 1024L * 1024L
+        private const val MINIMUM_FREE_SPACE_RESERVE = 32L * 1024L * 1024L
+        private const val MAX_REDIRECTS = 5
         private val SHA256_PATTERN = Regex("[A-Fa-f0-9]{64}")
     }
 }
